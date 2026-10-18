@@ -1,0 +1,22 @@
+# CLA configuration for BookFold.
+#
+# Live enforcement runs via .github/workflows/cla.yml (CLA Assistant GitHub
+# Action, the decentralized "lite" version of cla-assistant.io — signatures
+# are stored in this repository, no external database). This file is the
+# declarative source of truth for that setup: if you change anything here,
+# change the workflow inputs too (and vice versa).
+
+signatures:
+  # JSON file the bot commits accepted signatures to (stays in this repo).
+  path: signatures/version1/cla.json
+  branch: main
+
+documents:
+  individual: .cla/CLA-INDIVIDUAL.md
+  corporate: .cla/CLA-CORPORATE.md
+
+allowlist:
+  - hendkai
+  - github-actions[bot]
+  - dependabot[bot]
+  - renovate[bot]

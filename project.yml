@@ -1,0 +1,58 @@
+name: BookFold
+
+options:
+  minimumXcodeGenVersion: 2.44.1
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+# Offline by design: the app target intentionally has NO packages and NO
+# framework dependencies. scripts/check-no-network.sh enforces this in CI.
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+
+targets:
+  BookFold:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources/BookFold
+      - path: Resources
+        buildPhase: resources
+        excludes:
+          - Info.plist
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: BookFold
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSCameraUsageDescription: "BookFold uses the camera to scan book pages. Scans never leave your device."
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bookfold.app
+        PRODUCT_NAME: BookFold
+        PRODUCT_MODULE_NAME: BookFold
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+
+schemes:
+  BookFold:
+    build:
+      targets:
+        BookFold: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,14 @@
+# Xcode project is generated from project.yml — never commit it
+*.xcodeproj
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.ips
+*.ipa
+
+# macOS
+.DS_Store
+
+# Note: signatures/ (CLA signatures) is committed by the CLA bot on purpose.
