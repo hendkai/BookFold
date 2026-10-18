@@ -3,21 +3,51 @@
 //  SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import SwiftData
 
 /// A scanned "virtual book" in the user's local library.
-///
-/// The skeleton model is deliberately plain; persistence (SwiftData) and
-/// page storage land with the capture engine.
-struct Book: Identifiable, Hashable, Sendable {
-    let id: UUID
+@Model
+final class Book {
+    @Attribute(.unique) var id: UUID
     var title: String
     var createdAt: Date
-    var pageCount: Int
 
-    init(id: UUID = UUID(), title: String, createdAt: Date = Date(), pageCount: Int = 0) {
+    @Relationship(deleteRule: .cascade, inverse: \Page.book)
+    var pages: [Page]
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        createdAt: Date = Date(),
+        pages: [Page] = []
+    ) {
         self.id = id
         self.title = title
         self.createdAt = createdAt
-        self.pageCount = pageCount
+        self.pages = pages
+    }
+
+    var pageCount: Int { pages.count }
+
+    /// Pages in reading order.
+    var sortedPages: [Page] { pages.sorted { $0.index < $1.index } }
+}
+
+/// One corrected page image belonging to a book.
+@Model
+final class Page {
+    @Attribute(.unique) var id: UUID
+    /// Reading-order index within the book (0-based, gap-free).
+    var index: Int
+    /// File name inside `PageImageStore.directory(for: book.id)`.
+    var fileName: String
+
+    var book: Book?
+
+    init(id: UUID = UUID(), index: Int, fileName: String, book: Book? = nil) {
+        self.id = id
+        self.index = index
+        self.fileName = fileName
+        self.book = book
     }
 }

@@ -7,10 +7,12 @@ two-page spreads of an open book), let BookFold detect the page edges and
 correct the perspective, and collect the scans as a "virtual book" in your
 on-device library.
 
-> **Status: early development.** This repository currently contains the project
-> skeleton, license foundation and CI. The capture engine (edge detection,
-> perspective correction, spread splitting, page dewarping) is being built.
-> There is no App Store release yet.
+> **Status: early development.** The geometry capture engine (edge detection,
+> perspective correction, spread splitting, session-to-book persistence) is
+> implemented and unit-tested — see
+> [`docs/capture-engine.md`](docs/capture-engine.md). Page dewarping for
+> curved open books and the full library/reader experience are next. There is
+> no App Store release yet.
 
 ## Privacy: offline by design
 
@@ -27,10 +29,30 @@ on-device library.
 
 ## Roadmap
 
-1. Capture engine: live edge detection, auto-capture, perspective correction
-2. Two-page spread scanning with automatic page ordering
+1. ✅ Capture engine: live edge detection, auto-capture, perspective
+   correction (`docs/capture-engine.md`)
+2. ✅ Two-page spread scanning with automatic page ordering
 3. Page dewarping for curved open books
 4. Library & reader experience
+
+## Capture engine in one minute
+
+- **Live scanning:** `AVCaptureSession` + `VNDetectRectanglesRequest` with a
+  live edge overlay; the shutter fires itself once the page holds still for
+  ~1 s, and re-arms when you turn the page.
+- **Perspective & illumination:** detected rectangle → `CIPerspectiveCorrection`
+  → border-based white balance + gentle contrast shaping for a clean
+  "scanned page" look.
+- **Two-page spreads:** the detected rectangle is split at the midline and
+  each half is corrected independently — one shot of an open book yields two
+  consecutive pages in reading order.
+- **Session → book:** finishing a scan creates a `Book` with ordered pages in
+  the local SwiftData store; page JPEGs live in the app container. Nothing
+  ever leaves the device.
+- **Simulator-friendly:** no camera? Import photos — they run through the
+  exact same pipeline (also how the unit tests exercise it).
+
+Run the tests: `xcodegen generate && xcodebuild test -scheme BookFold`.
 
 ## Building from source
 

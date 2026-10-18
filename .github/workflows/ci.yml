@@ -35,5 +35,14 @@ jobs:
           ONLY_ACTIVE_ARCH=YES
           build
 
+      - name: Unit tests (geometry, pipeline, persistence)
+        run: >
+          xcodebuild
+          -project BookFold.xcodeproj
+          -scheme BookFold
+          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
+          CODE_SIGNING_ALLOWED=NO
+          test
+
       - name: Offline guard (no networking APIs, no tracking SDKs, no dependencies)
         run: ./scripts/check-no-network.sh
