@@ -15,9 +15,13 @@ enum ScanMode: String, CaseIterable, Sendable, Identifiable {
     var id: String { rawValue }
 }
 
-/// Geometry-only scan pipeline v1: perspective correction + illumination
-/// normalization (+ spread splitting). Page curvature survives by design —
-/// non-linear dewarping is a separate, later stage.
+/// Scan pipeline: perspective correction, optional non-linear dewarping
+/// (UVDoc, Core ML), illumination normalization, (+ spread splitting).
+///
+/// Without a `dewarper` this is the geometry-only v1 pipeline: page curvature
+/// survives. With one, curvature is flattened after perspective correction and
+/// before illumination normalization; a dewarp failure silently keeps the
+/// geometry-only page.
 ///
 /// `CIContext` is documented thread-safe and all other members are immutable,
 /// hence `@unchecked Sendable`: the pipeline may be called from the camera
@@ -26,15 +30,19 @@ final class ScanPipeline: @unchecked Sendable {
     let context: CIContext
     var targetLongEdge: CGFloat
     var illumination: IlluminationSettings
+    /// Optional non-linear dewarp stage (after perspective, before illumination).
+    let dewarper: UVDocDewarper?
 
     init(
         targetLongEdge: CGFloat = ScanPipelineDefaults.targetLongEdge,
         illumination: IlluminationSettings = IlluminationSettings(),
-        context: CIContext = Illumination.makeContext()
+        context: CIContext = Illumination.makeContext(),
+        dewarper: UVDocDewarper? = nil
     ) {
         self.targetLongEdge = targetLongEdge
         self.illumination = illumination
         self.context = context
+        self.dewarper = dewarper
     }
 
     /// Processes one capture into 1 (single page) or 2 (spread → reading
@@ -65,8 +73,12 @@ final class ScanPipeline: @unchecked Sendable {
             context: context
         ) else { return nil }
 
-        // Illumination normalization on the corrected page.
-        let ci = CIImage(cgImage: corrected)
+        // Non-linear dewarp on the corrected page (keeps the geometry-only
+        // page when the model is unavailable or fails).
+        let flattened = dewarper?.dewarp(corrected) ?? corrected
+
+        // Illumination normalization on the corrected (and dewarped) page.
+        let ci = CIImage(cgImage: flattened)
         let normalized = Illumination.normalized(
             image: ci,
             settings: illumination,

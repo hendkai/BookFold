@@ -1,8 +1,11 @@
-# Capture Engine v1 (Geometry-Only)
+# Capture Engine v2 (Geometry + UVDoc Dewarp)
 
 Status: **implemented** — live edge detection, auto-capture, perspective
-correction, illumination normalization, two-page spread splitting, session →
-SwiftData book persistence. **No dewarping** — curvature survives by design
+correction, UVDoc non-linear dewarping (Core ML, optional stage), illumination
+normalization, two-page spread splitting, session → SwiftData book persistence.
+Dewarping is opt-in per pipeline (`ScanPipeline(dewarper:)`); the app passes a
+`UVDocDewarper`, tests keep the geometry-only path. Curvature survives in the
+geometry-only pipeline by design
 (see [Curved pages](#curved-pages-expected-behavior)).
 
 ## Pipeline
@@ -18,6 +21,8 @@ AVCaptureSession (photo preset, portrait, ~12 Vision analyses/s)
                       └─ spread:       Quad.split(0.5) → L/R halves,
                                       each → CIPerspectiveCorrection → 2 pages
                                       (reading order: image-left first)
+                 └─ per page: UVDoc dewarp (optional, Core ML → 45×31 grid → Float32 resample,
+                    see below; falls back to the geometry-only page on any failure)
                  └─ per page: illumination normalization
                       (border white balance → contrast 1.06 / saturation 0.85)
                  └─ long edge capped at 2400 px (never upscaled, Lanczos)
@@ -111,7 +116,23 @@ Measured in the test suite (bow = max deviation from the chord over the
   i.e. ~86 % of the curl survives the resampling. The 2 % floor passes with
   little margin — tighten only after measuring on real photos.
 
-Non-linear dewarping (UVDoc/CoreML) is tracked in its own card.
+## Non-linear dewarp (UVDoc, Core ML)
+
+- `Resources/Models/UVDocGrid_fp16.mlpackage`: UVDoc (MIT) converted with
+  `Tools/ModelConvert/convert_uvdoc.py`. Input 1×3×712×488 RGB float, output
+  two sampling grids (45×31). Model: 15 MB, FP16. Licenses: `THIRD_PARTY_NOTICES.md`.
+- `UVDocDewarper` runs the network on the corrected page, resized to 488×712.
+  `DewarpResampler` (Float32, CPU) then resamples the full-resolution corrected
+  page through the upsampled grid (bilinear, align_corners = true). Source
+  positions outside the page are paper-white, not black.
+- Synthetic result (`UVDocDewarperTests`, curl 28 px on 800 px page): line bow
+  before 14.9 px → after 3.2 px (numbers in `Tools/ModelConvert/README.md`).
+  Flat page: no change (bow stays < 1 %).
+- Host timing (Mac, `-O`, full 1700×2400 page incl. model predict): 0.13–0.16 s.
+  Not an iPhone number.
+- **Not verified yet:** real curved book photos, on-device latency
+  (< 2 s/page target), memory on iPhone, and the iOS XCTest run (the simulator
+  test runner was unavailable on the build host). Those need a device run.
 
 ## Known limits (v1)
 
@@ -120,6 +141,10 @@ Non-linear dewarping (UVDoc/CoreML) is tracked in its own card.
   ~3 % off (0.774 measured vs 0.75 ground truth). Axis-aligned pages recover
   the aspect exactly (`testAxisAlignedPageRecoversAspectExactly`). A
   homography-based aspect estimate is a candidate follow-up.
+- **Dewarp is a learned approximation.** UVDoc was trained on Doc3D-style
+  synthetic warps plus real photos. Evaluated here only on synthetic curled
+  text; residual curl remains near the top and bottom page edges. Check on
+  real photos before relying on it for scholarly scans.
 - **Illumination needs an unmanaged CIContext.** White-balance gains are
   computed from gamma-encoded border values, so the chain must run with
   `Illumination.makeContext()` (working color space NSNull). A default,

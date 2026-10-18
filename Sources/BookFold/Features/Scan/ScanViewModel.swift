@@ -37,7 +37,7 @@ final class ScanViewModel {
     let session = ScanSession()
 
     private let camera = CameraController()
-    private let pipeline = ScanPipeline()
+    private let pipeline = ScanPipeline(dewarper: UVDocDewarper())
     private let stillDetector = DocumentDetector()
 
     /// Quad (normalized, upright-portrait space) that belongs to the photo
