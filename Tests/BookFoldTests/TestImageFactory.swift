@@ -15,8 +15,9 @@ import UIKit
 /// anywhere in the helpers.
 enum TestImageFactory {
     /// Same context the pipeline uses (unmanaged working space) so the
-    /// synthetic photos and the pipeline agree on pixel values.
-    static let context = Illumination.makeContext()
+    /// synthetic photos and the pipeline agree on pixel values. Computed, not
+    /// stored: a static `CIContext` trips Swift 6 strict concurrency on CI.
+    static var context: CIContext { Illumination.makeContext() }
 
     // MARK: Content rendering
 
