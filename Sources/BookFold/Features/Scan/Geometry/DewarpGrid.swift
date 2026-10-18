@@ -29,6 +29,44 @@ struct DewarpGrid: Sendable, Equatable {
         self.sourceY = sourceY
     }
 
+    /// Plausibility guard for a predicted grid.
+    ///
+    /// UVDoc grids are a smooth deformation of the identity: they span most
+    /// of [-1, 1] on both axes and keep columns/rows ordered. A degenerate
+    /// result (e.g. the all-zero grid some Core ML backends return when a
+    /// compute unit is unavailable) would collapse the page onto one pixel —
+    /// such grids must be rejected so the caller keeps the geometry-only page.
+    var isPlausible: Bool {
+        guard sourceX.allSatisfy({ $0.isFinite && abs($0) < 2 }),
+              sourceY.allSatisfy({ $0.isFinite && abs($0) < 2 })
+        else { return false }
+
+        // Coverage: the grid must still span the page (identity spans 2.0).
+        let spanX = (sourceX.max() ?? 0) - (sourceX.min() ?? 0)
+        let spanY = (sourceY.max() ?? 0) - (sourceY.min() ?? 0)
+        guard spanX > 1.2, spanY > 1.2 else { return false }
+
+        // Deviation from identity: real page curl moves points by a few
+        // percent of the page; > 0.5 (a quarter page) on average is garbage.
+        let identity = DewarpGrid.identity(rows: rows, cols: cols)
+        var sum: Float = 0
+        for i in 0..<sourceX.count {
+            sum += abs(sourceX[i] - identity.sourceX[i]) + abs(sourceY[i] - identity.sourceY[i])
+        }
+        guard sum / Float(2 * sourceX.count) < 0.25 else { return false }
+
+        // Order: along each row x must mostly increase, along each column y.
+        var inversions = 0
+        for r in 0..<rows {
+            for c in 0..<(cols - 1) where sourceX[r * cols + c + 1] <= sourceX[r * cols + c] { inversions += 1 }
+        }
+        for c in 0..<cols {
+            for r in 0..<(rows - 1) where sourceY[(r + 1) * cols + c] <= sourceY[r * cols + c] { inversions += 1 }
+        }
+        let pairs = rows * (cols - 1) + cols * (rows - 1)
+        return inversions * 20 < pairs // < 5 % folded cells
+    }
+
     /// Grid that maps every output pixel to itself (no-op dewarp).
     static func identity(rows: Int, cols: Int) -> DewarpGrid {
         var xs = [Float](repeating: 0, count: rows * cols)

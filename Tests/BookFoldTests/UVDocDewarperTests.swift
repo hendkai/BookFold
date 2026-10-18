@@ -3,6 +3,7 @@
 //  SPDX-License-Identifier: AGPL-3.0-or-later
 
 import CoreGraphics
+import CoreML
 import Foundation
 import XCTest
 
@@ -20,6 +21,27 @@ final class UVDocDewarperTests: XCTestCase {
         XCTAssertEqual(grid.cols, 31)
         XCTAssertTrue(grid.sourceX.allSatisfy { $0.isFinite && abs($0) < 3 })
         XCTAssertTrue(grid.sourceY.allSatisfy { $0.isFinite && abs($0) < 3 })
+    }
+
+    /// Every compute-unit preference must end in a plausible grid: on the
+    /// simulator `.all` / `.cpuAndGPU` yield an all-zero grid, which the
+    /// dewarper must detect and retry on `.cpuOnly`.
+    func testEveryComputeUnitPreferenceYieldsPlausibleGrid() throws {
+        let page = TestImageFactory.pageContent(width: 600, height: 800)
+        let reference = try XCTUnwrap(UVDocDewarper(computeUnits: .cpuOnly).predictGrid(for: page))
+        for units in [MLComputeUnits.all, .cpuAndGPU, .cpuAndNeuralEngine, .cpuOnly] {
+            let grid = try XCTUnwrap(
+                UVDocDewarper(computeUnits: units).predictGrid(for: page),
+                "computeUnits \(units.rawValue) must yield a grid"
+            )
+            XCTAssertTrue(grid.isPlausible, "computeUnits \(units.rawValue)")
+            var maxDiff: Float = 0
+            for i in 0..<grid.sourceX.count {
+                maxDiff = max(maxDiff, abs(grid.sourceX[i] - reference.sourceX[i]), abs(grid.sourceY[i] - reference.sourceY[i]))
+            }
+            // fp16 model: backends may differ slightly, never structurally.
+            XCTAssertLessThan(maxDiff, 0.02, "computeUnits \(units.rawValue) diverges from CPU reference")
+        }
     }
 
     func testMissingModelFallsBackToNil() {

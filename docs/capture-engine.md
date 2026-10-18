@@ -128,11 +128,25 @@ Measured in the test suite (bow = max deviation from the chord over the
 - Synthetic result (`UVDocDewarperTests`, curl 28 px on 800 px page): line bow
   before 14.9 px → after 3.2 px (numbers in `Tools/ModelConvert/README.md`).
   Flat page: no change (bow stays < 1 %).
+- **Compute units / plausibility guard.** On the iOS Simulator Core ML has no
+  MPSGraph engine; with `.all` or `.cpuAndGPU` it logs "MpsGraph backend
+  validation on incompatible OS" and silently returns an all-zero grid, which
+  collapsed every page onto its centre pixel (bow 0.197 on flat and curved
+  input). Fix: `UVDocDewarper.defaultComputeUnits` is `.cpuOnly` in the
+  simulator and `.all` on device; every predicted grid passes
+  `DewarpGrid.isPlausible` (finite, spans the page, mean deviation from
+  identity < 0.25, < 5 % folded cells). An implausible grid is retried once on
+  `.cpuOnly` (the dewarper then stays on the CPU); if that fails too, `dewarp`
+  returns `nil` and the pipeline keeps the geometry-only page.
+- iOS Simulator (Xcode 27.0, iPhone 17 Pro, iOS 27.0, `.cpuOnly`):
+  `UVDocDewarperTests` curl bow 0.0230 → 0.0085, flat 0.0056; full suite 56/56.
+  Timing for a 1700×2400 page incl. model predict: Release 0.14 s, Debug 2.0 s
+  (unoptimized resampler). Host CPU, not an iPhone number.
 - Host timing (Mac, `-O`, full 1700×2400 page incl. model predict): 0.13–0.16 s.
-  Not an iPhone number.
 - **Not verified yet:** real curved book photos, on-device latency
-  (< 2 s/page target), memory on iPhone, and the iOS XCTest run (the simulator
-  test runner was unavailable on the build host). Those need a device run.
+  (< 2 s/page target) and memory on iPhone, and whether `.all` on a real
+  device (ANE/GPU) yields a plausible grid (the guard falls back to CPU if not).
+  Those need a device run.
 
 ## Known limits (v1)
 

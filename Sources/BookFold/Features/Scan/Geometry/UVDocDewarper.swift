@@ -25,11 +25,33 @@ final class UVDocDewarper: @unchecked Sendable {
     private let lock = NSLock()
     private var model: MLModel?
     private var loadAttempted = false
+    /// Compute units of the currently loaded model. Switches to `.cpuOnly`
+    /// once if the preferred units produce a degenerate grid.
+    private(set) var computeUnits: MLComputeUnits
 
-    /// - Parameter modelURL: compiled `.mlmodelc` location. Defaults to the
-    ///   copy bundled with the app; tests may pass another location.
-    init(modelURL: URL? = UVDocDewarper.bundledModelURL) {
+    /// Default compute units. The iOS Simulator has no MPSGraph engine: with
+    /// `.all` / `.cpuAndGPU` Core ML silently returns an all-zero grid there
+    /// ("MpsGraph backend validation on incompatible OS"), so the simulator
+    /// runs on the CPU. Devices use every unit (ANE/GPU).
+    static var defaultComputeUnits: MLComputeUnits {
+        #if targetEnvironment(simulator)
+        return .cpuOnly
+        #else
+        return .all
+        #endif
+    }
+
+    /// - Parameters:
+    ///   - modelURL: compiled `.mlmodelc` location. Defaults to the copy
+    ///     bundled with the app; tests may pass another location.
+    ///   - computeUnits: preferred compute units; an implausible grid triggers
+    ///     one retry on `.cpuOnly`.
+    init(
+        modelURL: URL? = UVDocDewarper.bundledModelURL,
+        computeUnits: MLComputeUnits = UVDocDewarper.defaultComputeUnits
+    ) {
         self.modelURL = modelURL
+        self.computeUnits = computeUnits
     }
 
     /// `UVDocGrid_fp16.mlmodelc` inside the bundle that contains this class.
@@ -39,12 +61,30 @@ final class UVDocDewarper: @unchecked Sendable {
 
     /// Predicts the sampling grid for a page image (any size; resized to the
     /// network input internally). `nil` if the model is unavailable.
+    /// The grid is plausibility-checked (`DewarpGrid.isPlausible`); a
+    /// degenerate result is retried once on `.cpuOnly` and otherwise `nil`.
     func predictGrid(for page: CGImage) -> DewarpGrid? {
         lock.lock()
         defer { lock.unlock() }
+        guard let input = Self.makeInputArray(from: page) else { return nil }
         guard let model = loadedModelLocked() else { return nil }
 
-        guard let input = Self.makeInputArray(from: page) else { return nil }
+        if let grid = Self.predict(model, input: input), grid.isPlausible { return grid }
+        guard computeUnits != .cpuOnly else { return nil }
+
+        // The preferred backend produced garbage (or failed): switch to the
+        // CPU for this and every later page.
+        computeUnits = .cpuOnly
+        self.model = nil
+        loadAttempted = false
+        guard let cpuModel = loadedModelLocked(),
+              let grid = Self.predict(cpuModel, input: input),
+              grid.isPlausible
+        else { return nil }
+        return grid
+    }
+
+    private static func predict(_ model: MLModel, input: MLMultiArray) -> DewarpGrid? {
         let provider = try? MLDictionaryFeatureProvider(dictionary: [
             "image": MLFeatureValue(multiArray: input),
         ])
@@ -52,8 +92,7 @@ final class UVDocDewarper: @unchecked Sendable {
               let output = try? model.prediction(from: provider),
               let grid2D = output.featureValue(for: "point_positions2D")?.multiArrayValue
         else { return nil }
-
-        return Self.readGrid(grid2D)
+        return readGrid(grid2D)
     }
 
     /// Full dewarp of a page. The result has the input's size; `nil` on any
@@ -93,7 +132,7 @@ final class UVDocDewarper: @unchecked Sendable {
         loadAttempted = true
         guard let modelURL else { return nil }
         let configuration = MLModelConfiguration()
-        configuration.computeUnits = .all
+        configuration.computeUnits = computeUnits
         model = try? MLModel(contentsOf: modelURL, configuration: configuration)
         return model
     }
