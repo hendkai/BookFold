@@ -31,4 +31,3 @@ jobs:
           branch: 'main'
           allowlist: 'github-actions[bot],dependabot[bot],renovate[bot]'
           custom-notsigned-prcomment: 'Thanks for your contribution! Before we can merge it, please sign our CLA (contributor license agreement — it keeps BookFold free and dual-licensable). **Individuals:** read [CLA-INDIVIDUAL.md](https://github.com/hendkai/BookFold/blob/main/.cla/CLA-INDIVIDUAL.md), then comment below with exactly: `I have read the CLA Document and I hereby sign the CLA` **Contributing for a company?** Read [CLA-CORPORATE.md](https://github.com/hendkai/BookFold/blob/main/.cla/CLA-CORPORATE.md) and contact snailberg@kaiser-mail.de for countersigned terms.'
-          signed-commit-message: '$contributorName has signed the CLA in $owner/$repo#$pullRequestNo'
