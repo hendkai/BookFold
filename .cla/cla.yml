@@ -16,7 +16,6 @@ documents:
   corporate: .cla/CLA-CORPORATE.md
 
 allowlist:
-  - hendkai
   - github-actions[bot]
   - dependabot[bot]
   - renovate[bot]
