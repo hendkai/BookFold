@@ -12,3 +12,6 @@ xcuserdata/
 .DS_Store
 
 # Note: signatures/ (CLA signatures) is committed by the CLA bot on purpose.
+
+# Editor cruft
+*.swp
